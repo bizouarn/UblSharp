@@ -14,7 +14,7 @@
     <PackageLicenseUrl>https://github.com/UblSharp/UblSharp/blob/master/LICENSE</PackageLicenseUrl>
     <RootNamespace>UblSharp.Generator</RootNamespace>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <TargetFrameworks>net46</TargetFrameworks>
+    <TargetFrameworks>net462</TargetFrameworks>
     <LangVersion>7.1</LangVersion>
     <NoWarn>$(NoWarn)</NoWarn>
     <WarningsAsErrors>false</WarningsAsErrors>
@@ -27,7 +27,7 @@
     <EmbeddedResource Include="Resources\**\**" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" Version="1.0.8" />
+    <PackageReference Include="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" Version="3.6.0" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
