@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Xml;
@@ -39,41 +40,24 @@ namespace UblSharp.Validation
                 XmlResolver = _xsdResolver
             };
 
-            var thisAssembly = typeof(UblDocumentValidator).Assembly;
-
-            var xsdName = $"{BaseNamespace}.maindoc.";
-            foreach (var manifestStreamName in thisAssembly.GetManifestResourceNames())
+            foreach (var path in XsdResources.Paths)
             {
-                if (manifestStreamName.StartsWith(xsdName, StringComparison.Ordinal)
-                    && manifestStreamName.EndsWith(".xsd", StringComparison.Ordinal))
-                {
-                    using (var manifestStream = thisAssembly.GetManifestResourceStream(manifestStreamName))
-                    {
-                        if (manifestStream == null)
-                        {
-                            throw new InvalidOperationException($"Error while getting manifest resource '{manifestStreamName}'");
-                        }
+                if (!path.StartsWith("maindoc/", StringComparison.Ordinal)) continue;
 
-                        var schema = XmlSchema.Read(manifestStream, _schemaValHandler);
-                        schema.SourceUri = "file:///" + manifestStreamName.Replace(xsdName, "");
-                        _cachedSchema.Add(schema);
-                    }
+                using (var stream = XsdResources.Open(path))
+                {
+                    var schema = XmlSchema.Read(stream, _schemaValHandler);
+                    schema.SourceUri = "file:///" + path.Substring("maindoc/".Length);
+                    _cachedSchema.Add(schema);
                 }
             }
 
-            var resourceName = $"{BaseNamespace}.common.UBL-xmldsig-core-schema-2.1.xsd";
-            using (var stream = thisAssembly.GetManifestResourceStream(resourceName))
+            using (var stream = XsdResources.Open("common/UBL-xmldsig-core-schema-2.1.xsd"))
             {
-                if (stream == null)
-                {
-                    throw new InvalidOperationException($"Error while getting manifest resource '{resourceName}'");
-                }
-
                 var schema = XmlSchema.Read(stream, _schemaValHandler);
                 schema.SourceUri = "file:///UBL-xmldsig-core-schema-2.1.xsd";
                 _cachedSchema.Add(schema);
             }
-
             _cachedSchema.Compile();
         }
 

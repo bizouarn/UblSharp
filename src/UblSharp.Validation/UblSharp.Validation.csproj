@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../../build.props" />
   <PropertyGroup>
     <AssemblyName>UblSharp.Validation</AssemblyName>
@@ -19,9 +19,67 @@
     <WarningsAsErrors>true</WarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+  <!--
+    XSDs are packed at build time into ONE solid gzip archive (xsd.pack.gz) to reduce the assembly size.
+    XSD annotations (documentation) are stripped: they are not needed for validation and make up ~80% of the XSD size.
+    Archive format: [int count] then per entry [string path ('/' separated, e.g. "maindoc/UBL-Invoice-2.1.xsd")][int length][bytes].
+    Read at runtime by Internal/XsdResources.cs.
+  -->
   <ItemGroup>
-    <EmbeddedResource Include="**\*.xsd" />
+    <XsdSource Include="Resources\**\*.xsd" />
   </ItemGroup>
+  <UsingTask TaskName="PackXsd" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <OutputFile Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Xml" />
+      <Using Namespace="System.Xml.Linq" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        Directory.CreateDirectory(Path.GetDirectoryName(OutputFile));
+        XNamespace xsd = "http://www.w3.org/2001/XMLSchema";
+        var settings = new XmlWriterSettings { Indent = false, OmitXmlDeclaration = false, Encoding = new System.Text.UTF8Encoding(false) };
+        using (var output = File.Create(OutputFile))
+        using (var gzip = new GZipStream(output, CompressionMode.Compress))
+        using (var writer = new BinaryWriter(gzip))
+        {
+            writer.Write(Files.Length);
+            foreach (var file in Files)
+            {
+                var path = (file.GetMetadata("RecursiveDir") + file.GetMetadata("Filename") + file.GetMetadata("Extension")).Replace(Path.DirectorySeparatorChar, '/');
+                var doc = XDocument.Load(file.ItemSpec);
+                doc.Descendants(xsd + "annotation").ToList().ForEach(e => e.Remove());
+                byte[] bytes;
+                using (var ms = new MemoryStream())
+                {
+                    using (var xw = XmlWriter.Create(ms, settings)) { doc.Save(xw); }
+                    bytes = ms.ToArray();
+                }
+                writer.Write(path);
+                writer.Write(bytes.Length);
+                writer.Write(bytes);
+            }
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="InitPackXsd">
+    <PropertyGroup>
+      <XsdPackFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)xsd.pack.gz</XsdPackFile>
+    </PropertyGroup>
+  </Target>
+  <Target Name="PackXsd" DependsOnTargets="InitPackXsd" BeforeTargets="AssignTargetPaths" Inputs="@(XsdSource);$(MSBuildProjectFullPath)" Outputs="$(XsdPackFile)">
+    <PackXsd Files="@(XsdSource)" OutputFile="$(XsdPackFile)" />
+  </Target>
+  <Target Name="EmbedPackedXsd" AfterTargets="PackXsd" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <EmbeddedResource Include="$(XsdPackFile)" LogicalName="$(AssemblyName).Resources.xsd.pack.gz" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <ProjectReference Include="..\UblSharp\UblSharp.csproj" />
   </ItemGroup>
